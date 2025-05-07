@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login/Registo </title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <title> Luxury Wheels - Login e Registo</title>
+        <h1> Bem vind@ á Luxury Wheels </h1>
+
+        {% if mensagem %}
+            <div class="mensagem-erro">
+                {{ mensagem }}
+            </div>
+        {% endif %}    
+
+        <!--Formulário de login-->
+        <div class="form-container">
+            <h2>Login</h2>
+            <form method="POST">
+                <input type="text" name="usuario" placeholder="Usuário" required>
+                <input type="password" name="senha" placeholder="Senha" required>
+                <button type="submit">Entrar</button>
+            </form>
+        </div>
+
+
+        <!--Para a parte do registo-->
+        <div class="form-container" autocomplete ="off">
+            <h2>Registo</h2>
+            <form method="POST">
+                <input type="text" name="nome" placeholder="Nome Completo" required>
+                <input type="text" name="usuario" placeholder="Usuário" required>
+                <input type="password" name="senha" placeholder="Senha" required>
+                <input type="password" name="senha_confirmacao" placeholder="Confirmar Senha" required>
+                <button type="submit">Registar</button>
+            </form>
+        </div>
+    </div>      
+</body>
+</html>

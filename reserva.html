@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Reserva</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+</head>
+<body>
+    {% include 'barra_navegacao.html' %}
+
+    <div class="reserva-container">
+        <h2>Reserva de {{ carro[1] }} {{ carro[2] }}</h2>
+
+        <!-- Imagem do carro -->
+        <img src="{{ url_for('static', filename=carro[7]) }}" alt="{{ carro[1] }}" style="max-width: 300px; margin-bottom: 20px;">
+
+        <form method="POST">
+            <label for="data_inicio">Data de Início:</label>
+            <input type="date" name="data_inicio" required>
+
+            <label for="data_fim">Data de Fim:</label>
+            <input type="date" name="data_fim" required>
+
+            <button type="submit" class="btn-confirmar" style="background-color: #4a7c59; color: white; padding: 8px 15px; border-radius: 5px; text-decoration: none; font-weight: bold; border: none; cursor: pointer; transition: background-color 0.3s;" onmouseover="this.style.backgroundColor='#3c6348'" onmouseout="this.style.backgroundColor='#4a7c59'">
+                Confirmar Reserva
+            </button>
+        </form>
+    </div>
+</body>
+</html>

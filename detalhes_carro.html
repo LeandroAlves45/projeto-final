@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Detalhes do Carro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+    
+</head>
+<body>
+    {% include 'barra_navegacao.html' %}
+
+    <div class="detalhes-container">
+        <img src="{{ url_for('static', filename=carro[7]) }}" alt="{{ carro[1] }}">
+        
+        <div class="carro-info">
+            <h2>{{ carro[1] }} {{ carro[2] }}</h2>
+            <p class="info"><strong>Categoria:</strong> {{ carro[3] }}</p>
+            <p class="info"><strong>Transmissão:</strong> {{ carro[4] }}</p>
+            <p class="info"><strong>Tipo:</strong> {{ carro[5] }}</p>
+            <p class="info"><strong>Capacidade:</strong> {{ carro[6] }} pessoas</p>
+            <p class="info"><strong>Valor da diária:</strong> {{ carro[8] }} €</p>
+            <p class="info"><strong>Última inspeção:</strong> {{ carro[11] }}</p>
+            <p class="info"><strong>Última revisão:</strong> {{ carro[9] }}</p>
+            <p class="info"><strong>Próxima revisão:</strong> {{ carro[10] }}</p>
+
+            <a href="{{ url_for('reservar_carro', carro_id=carro[0]) }}" class="reserva-btn">Reservar este carro</a>
+        </div>
+    </div>
+</body>
+</html>

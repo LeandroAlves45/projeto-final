@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Alterar Reserva</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+</head>
+<body>
+    {% include 'barra_navegacao.html' %}
+
+    <div class="reserva-container">
+        <h2>Alterar Datas da Reserva</h2>
+
+        <form method="POST">
+            <label>Nova data de início:</label>
+            <input type="date" name="data_inicio" value="{{ reserva[0] }}" required>
+
+            <label>Nova data de fim:</label>
+            <input type="date" name="data_fim" value="{{ reserva[1] }}" required>
+
+            <button type="submit" class="btn-confirmar" style="background-color: #4a7c59; color: white; padding: 8px 15px; border-radius: 5px; text-decoration: none; font-weight: bold; border: none; cursor: pointer; transition: background-color 0.3s;" onmouseover="this.style.backgroundColor='#3c6348'" onmouseout="this.style.backgroundColor='#4a7c59'">Guardar Alterações</button>
+        </form>
+    </div>
+</body>
+</html>

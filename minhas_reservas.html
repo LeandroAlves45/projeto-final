@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Minhas Reservas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+</head>
+<body>
+    {% include 'barra_navegacao.html' %}
+
+    <div class="reserva-container">
+        <h2>Minhas Reservas</h2>
+
+        <!-- Botão para limpar reservas inativas -->
+        <form method="POST" action="{{ url_for('limpar_reservas') }}">
+            <button type="submit"
+                style="background-color: #8b0000; color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold;">
+                Limpar Reservas Inativas
+            </button>
+        </form>
+        <br>
+
+        {% if reservas %}
+            {% for r in reservas %}
+                <div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 10px;">
+                    <p><strong>Carro:</strong> {{ r[1] }} {{ r[2] }}</p>
+                    <p><strong>Data Início:</strong> {{ r[3] }}</p>
+                    <p><strong>Data Fim:</strong> {{ r[4] }}</p>
+                    {% set dias = (r[4]|todate - r[3]|todate).days + 1 %}
+                    {% set total = dias * r[5] %}
+                    <p><strong>Valor estimado:</strong> {{ total }} € ({{ dias }} dias)</p>
+                    <p><strong>Status:</strong> {{ r[6] }}</p>
+
+                    {% if r[6] == 'Ativa' %}
+                        <a href="{{ url_for('cancelar_reserva', reserva_id=r[0]) }}" class="reserva-btn" style="background-color: #4a7c59; color: white; padding: 8px 15px; border-radius: 5px; text-decoration: none; font-weight: bold; border: none; cursor: pointer; transition: background-color 0.3s;" onmouseover="this.style.backgroundColor='#3c6348'" onmouseout="this.style.backgroundColor='#4a7c59'">Cancelar</a>
+                        <a href="{{ url_for('alterar_reserva', reserva_id=r[0]) }}" class="reserva-btn" style="background-color: #4a7c59; color: white; padding: 8px 15px; border-radius: 5px; text-decoration: none; font-weight: bold; border: none; cursor: pointer; transition: background-color 0.3s;" onmouseover="this.style.backgroundColor='#3c6348'" onmouseout="this.style.backgroundColor='#4a7c59'">Alterar</a>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>Não tens reservas no momento.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

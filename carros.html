@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Carros Disponíveis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+</head>
+<body>
+    {% include 'barra_navegacao.html' %}
+
+    <div class="container">
+        {% if carros %}
+            <div class="carros-grid">
+                {% for carro in carros %}
+                    <div class="carro-card">
+                        <a href="{{ url_for('ver_carro', carro_id=carro[0]) }}">
+                            <img src="{{ url_for('static', filename=carro[7]) }}" alt="{{ carro[1] }}">
+                        </a>
+                        <div class="carro-info">
+                            <h3>{{ carro[1] }} {{ carro[2] }}</h3>
+                            <p><strong>Categoria:</strong> {{ carro[3] }}</p>
+                            <p><strong>Tipo:</strong> {{ carro[5] }}</p>
+                            <p><strong>Preço/dia:</strong> {{ carro[8] }} €</p>
+                            <a href="{{ url_for('reservar_carro', carro_id=carro[0]) }}" style="
+                                background-color: #4a7c59;
+                                color: white;
+                                padding: 8px 15px;
+                                border-radius: 5px;
+                                text-decoration: none;
+                                font-weight: bold;
+                                transition: background-color 0.3s;"
+                                onmouseover="this.style.backgroundColor='#3c6348'"
+                                onmouseout="this.style.backgroundColor='#4a7c59'"
+                            >Reservar</a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            {% if pesquisa %}
+                <p style="margin-top: 20px;">Nenhum carro encontrado com o termo <strong>{{ pesquisa }}</strong>.</p>
+            {% else %}
+                <p style="margin-top: 20px;">Nenhum carro disponível no momento.</p>
+            {% endif %}
+        {% endif %}
+    </div>
+</body>
+</html>

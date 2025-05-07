@@ -1,0 +1,66 @@
+<!-- Barra de Navegação Reutilizável com botões estilizados no tema da aplicação -->
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; max-width: 1200px; margin: 0 auto;">
+    <div>
+        {% if request.endpoint != 'home' and request.endpoint != 'listar_carros' %}
+        <a href="{{ url_for('listar_carros') }}" style="
+            background-color: #4a7c59;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            text-decoration: none;
+            margin-right: 10px;
+            font-weight: bold;
+            transition: background-color 0.3s;"
+            onmouseover="this.style.backgroundColor='#3c6348'"
+            onmouseout="this.style.backgroundColor='#4a7c59'"
+        >Menu Principal</a>
+        {% endif %}
+        
+        {% if session.get('usuario') %}
+            {% if request.endpoint != 'minhas_reservas' %}
+            <a href="{{ url_for('minhas_reservas') }}" style="
+                background-color: #4a7c59;
+                color: white;
+                padding: 8px 15px;
+                border-radius: 5px;
+                text-decoration: none;
+                margin-right: 10px;
+                font-weight: bold;
+                transition: background-color 0.3s;"
+                onmouseover="this.style.backgroundColor='#3c6348'"
+                onmouseout="this.style.backgroundColor='#4a7c59'"
+            >Minhas Reservas</a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}" style="
+                background-color: #4a7c59;
+                color: white;
+                padding: 8px 15px;
+                border-radius: 5px;
+                text-decoration: none;
+                font-weight: bold;
+                transition: background-color 0.3s;"
+                onmouseover="this.style.backgroundColor='#3c6348'"
+                onmouseout="this.style.backgroundColor='#4a7c59'"
+            >Terminar Sessão</a>
+        {% endif %}
+    </div>
+
+    {% if request.endpoint == 'listar_carros' %}
+    <form method="GET" style="display: flex; margin-top: 10px; margin-bottom: 20px;">
+        <input type="text" name="pesquisa" placeholder="Pesquisar..." value="{{ request.args.get('pesquisa', '') }}">
+        <button type="submit" style="
+            background-color: #4a7c59;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            margin-left: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;"
+            onmouseover="this.style.backgroundColor='#3c6348'"
+            onmouseout="this.style.backgroundColor='#4a7c59'"
+        >Pesquisar</button>
+    </form>
+    {% endif %}
+</div>
