@@ -16,7 +16,9 @@ def todate_filter(value, format="%Y-%m-%d"):
 
 
 def conectar_bd():
-    return sqlite3.connect("database/banco_de_dados.db")
+    conn = sqlite3.connect("database/banco_de_dados.db")
+    conn.row_factory = sqlite3.Row
+    return conn
 
 #criação das tabelas da base de dados
 def criar_tabelas():
@@ -118,7 +120,7 @@ def home ():
 
         usuario_encontrado= verificar_usuario(usuario,senha)
         if usuario_encontrado:
-            session['usuario'] = usuario_encontrado[1] #guarda o nome do usuário na sessão
+            session['usuario'] = usuario_encontrado[2] #guarda o nome do usuário na sessão
                 #print para analisar se deu
                 #print(f"Usuário autenticado: {session['usuario']}") #Debugging
                 #print("Redirencionando para a página de carros")
@@ -126,21 +128,6 @@ def home ():
             
         else:
             mensagem = "Credenciais inválidas, tente novamente."
-        
-        """elif 'nome' in request.form and 'usuario' in request.form and 'senha' in request.form and 'senha_confirmacao' in request.form:
-            nome = request.form['nome']
-            usuario = request.form['usuario']
-            senha = request.form['senha']
-            senha_confirmacao= request.form['senha_confirmacao']
-
-            if senha == senha_confirmacao:
-                registar_usuario(nome, usuario, senha)
-                print(f"Usuário {usuario} registado com sucesso") #Debugging
-                #Registo de utilizador bem sucedido
-                return redirect(url_for('home', registo="sucesso")) #após registar volta para a página inicial e entra
-            
-            else:
-                mensagem= "As senhas não coincidem, tente novamente."""
             
     return render_template('index.html', mensagem=mensagem)
 
@@ -149,7 +136,22 @@ def home ():
 def dashboard():
     if 'usuario' not in session:
         return redirect(url_for('home')) #se o utilizador não logado, redireciona para o login
-    return "Login executado com sucesso"
+    
+    conn = conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM veiculos
+        WHERE DATE(ultima_inspecao) > DATE('now', '-1 year')
+        AND NOT EXISTS (
+            SELECT 1 FROM reservas r
+            WHERE r.veiculo_id = veiculos.id
+            AND r.status = 'Ativa'
+            AND DATE(r.data_fim) >= DATE('now')
+        )
+    """)
+    carros = cursor.fetchall()
+    conn.close()
+    return render_template("carros.html", carros=carros)
 
 #Página com todos os carros
 @app.route('/carros', methods=['GET']) #define a rota da página
@@ -259,36 +261,45 @@ def reservar_carro(carro_id):
         cursor.execute("SELECT id FROM clientes WHERE usuario = ?", (usuario,))
         cliente = cursor.fetchone()
 
-        if cliente:
-            cliente_id= cliente[0]
+        if  not cliente:
+            conn.close()
+            return f"Cliente não encontrado para o utulizador '{usuario}'"
+        
+        cliente_id= cliente[0]
 
-            #verificar se existe alguma reserva igual
-            cursor.execute("""
-                SELECT * FROM reservas
-                WHERE cliente_id = ? AND veiculo_id = ? AND data_inicio  = ? AND data_fim = ? AND status = 'Ativa'
-            """, (cliente_id, carro_id, data_inicio, data_fim))
-            reserva_existente= cursor.fetchone()
+        #verificar se existe alguma reserva igual
+        cursor.execute("""
+            SELECT * FROM reservas
+            WHERE cliente_id = ? AND veiculo_id = ? AND data_inicio  = ? AND data_fim = ? AND status = 'Ativa'
+        """, (cliente_id, carro_id, data_inicio, data_fim))
+        reserva_existente= cursor.fetchone()
 
-            if reserva_existente:
-                conn.close()
-                return "Já existe uma reserva ativa com os mesmos dados."
+        if reserva_existente:
+            conn.close()
+            return "Já existe uma reserva ativa com os mesmos dados."
 
-            #calcular total 
-            data1= datetime.strptime(data_inicio, "%Y-%m-%d")
-            data2= datetime.strptime(data_fim, "%Y-%m-%d")
-            dias= (data2 - data1).days + 1
-            total = dias * carro[8] #carro[8] valor diaria
+        try:
+            data1 = datetime.strptime(data_inicio, "%Y-%m-%d")
+            data2 = datetime.strptime(data_fim, "%Y-%m-%d")
+            if data2 < data1:
+                return  "A data de fim não pode ser anterior á data de início."
+                
+            dias = (data2 - data1).days + 1
+            total = dias * carro[8]
 
             cursor.execute("""
                 INSERT INTO reservas (cliente_id, veiculo_id, data_inicio, data_fim, valor_total, status)
                 VALUES (?, ?, ?, ?, ?, 'Ativa')
-                """, (cliente_id, carro_id, data_inicio, data_fim, total)) 
-            
+            """, (cliente_id, carro_id, data_inicio, data_fim, total)) 
+
             conn.commit()
             conn.close()
-
             return redirect(url_for("minhas_reservas"))
-        
+
+        except Exception as e:
+            conn.close()
+            return f"Ocorreu um erro ao reservar: {e}"
+
     conn.close()
     return render_template("reserva.html", carro=carro)
 
@@ -315,7 +326,21 @@ def minhas_reservas():
             JOIN veiculos ON reservas.veiculo_id = veiculos.id
             WHERE reservas.cliente_id = ?
         """, (cliente_id,))
-        reservas= cursor.fetchall()
+        reservas = []
+        for row in cursor.fetchall():
+            id, marca, modelo, data_inicio, data_fim, valor_diaria, status = row
+            dias = (datetime.strptime(data_fim, "%Y-%m-%d") - datetime.strptime(data_inicio, "%Y-%m-%d")).days
+            total = dias * valor_diaria
+            reservas.append({
+                "id": id,
+                "marca": marca,
+                "modelo": modelo,
+                "data_inicio": data_inicio,
+                "data_fim": data_fim,
+                "valor_diaria": valor_diaria,
+                "total": total,
+                "status": status
+            })
         conn.close()
 
         return render_template("minhas_reservas.html", reservas=reservas)
