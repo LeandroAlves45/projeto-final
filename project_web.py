@@ -1,20 +1,36 @@
 from flask import Flask, flash, render_template, request, redirect, url_for, session
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from dateutil.relativedelta import relativedelta
+
+"""
+project_web.py
+
+Aplicação Flask para gerenciamento de reservas de carros:
+- Conexão com SQLite para persistência de usuários, carros, reservas e pagamentos.
+- Rotas para login, cadastro, listagem de carros, CRUD de reservas e processamento de pagamento.
+- Uso de sessões para controle de autenticação e totais de pagamento.
+"""
+
+
 #criar base de dados no sqlite (primeiro passo)
 app = Flask(__name__)
-app.secret_key= 'chave_super_secreta_444'
-app.config["DEBUG"] = True
+app.secret_key= 'chave_super_secreta_444'   #Usada para criptografar cookies da sessão
+app.config["DEBUG"] = True              #Modo Debug habilitado
 
 #filtro para converter string de data para objeto date
 @app.template_filter('todate')
 def todate_filter(value, format="%Y-%m-%d"):
+    """
+    Converte string no formato YYYY-MM-DD para objeto date do Python.
+    Uso em Jinja: {{ '2025-05-01'|todate }} retorna datetime.date(2025, 5, 1).
+    """
     try:
         return datetime.strptime(value,format).date()
     except:
         return value
 
-
+#conectar base de dados ao projeto
 def conectar_bd():
     conn = sqlite3.connect("database/banco_de_dados.db")
     conn.row_factory = sqlite3.Row
@@ -22,6 +38,12 @@ def conectar_bd():
 
 #criação das tabelas da base de dados
 def criar_tabelas():
+     #Cria as tabelas no banco SQLite caso não existam:
+     #- usuarios (login e senha)
+     #- carros (modelo, categoria, preço etc.)
+     #- reservas (relaciona usuário, carro e datas)
+     #- pagamentos (dados de cartão vinculados à reserva)
+     
     conn= conectar_bd()
     cursor= conn.cursor()
     cursor.executescript('''
@@ -74,6 +96,15 @@ def criar_tabelas():
 
 #Vamos agora criar uma função para verificar se existe o usuário
 def verificar_usuario(usuario, senha):
+ #Valida credenciais de login.
+    
+#Args:
+    #usuario (str): nome de usuário.
+    #senha (str): senha em texto plano.
+    
+#Returns:
+    #dict | None: dados do usuário (id, nome) se válido, ou None caso contrário.
+
     conn= conectar_bd()
     cursor=conn.cursor()
     cursor.execute("SELECT * FROM clientes WHERE usuario = ? AND senha = ?", (usuario,senha))
@@ -121,69 +152,65 @@ def home ():
         usuario_encontrado= verificar_usuario(usuario,senha)
         if usuario_encontrado:
             session['usuario'] = usuario_encontrado[2] #guarda o nome do usuário na sessão
-                #print para analisar se deu
-                #print(f"Usuário autenticado: {session['usuario']}") #Debugging
-                #print("Redirencionando para a página de carros")
-            return redirect(url_for('listar_carros')) #Redireciona para a página do dashboard após executar login
+            return redirect(url_for('listar_carros')) #Redireciona para a página listar_carros após executar login
             
         else:
             mensagem = "Credenciais inválidas, tente novamente."
             
     return render_template('index.html', mensagem=mensagem)
 
-#Página dashboard (após login)
-@app.route('/dashboard')
-def dashboard():
-    if 'usuario' not in session:
-        return redirect(url_for('home')) #se o utilizador não logado, redireciona para o login
-    
-    conn = conectar_bd()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT * FROM veiculos
-        WHERE DATE(ultima_inspecao) > DATE('now', '-1 year')
-        AND NOT EXISTS (
-            SELECT 1 FROM reservas r
-            WHERE r.veiculo_id = veiculos.id
-            AND r.status = 'Ativa'
-            AND DATE(r.data_fim) >= DATE('now')
-        )
-    """)
-    carros = cursor.fetchall()
-    conn.close()
-    return render_template("carros.html", carros=carros)
 
 #Página com todos os carros
 @app.route('/carros', methods=['GET']) #define a rota da página
-#se o utilizador não tiver logado será redirecionado
 def listar_carros():
     #Verificar se o utilizador está autenticado
     if 'usuario' not in session:
-        print("Usuário não logado, redirecionando para o login...") #Debugging
         return redirect(url_for('home'))
+    #obtem a data de hoje
+    hoje = date.today().isoformat()
+    #calcula a data daqui a 1 ano para o filtro de inspeção obrigatório
+    um_ano = (date.today() + relativedelta(years=1)).isoformat()
     
     #conectar á base de dados
     conn= conectar_bd()
     cursor = conn.cursor()
 
+    # Monta a query principal com filtros de inspeção e revisão e exclusão de veículos reservados
+    sql_base = '''
+    SELECT v.*
+    FROM veiculos v
+    WHERE v.id NOT IN (
+    SELECT r.veiculo_id
+    FROM reservas r
+    WHERE date(r.data_fim) >= DATE('now')
+        AND r.status = 'Ativa'
+        )
+    '''
+    parametros = []
 
-     #Recolher os filtros enviados por GET (pesquisa e filtros laterais)
+
+    #Recolher os filtros enviados por GET (pesquisa e filtros laterais)
     pesquisa= request.args.get('pesquisa', "")
+    #parametros = [um_ano, hoje, hoje,hoje]
 
     if pesquisa:
-        cursor.execute("SELECT * FROM veiculos WHERE marca LIKE ? or modelo LIKE ? or categoria LIKE ?",
-                       ('%' + pesquisa + '%', '%' + pesquisa + '%', '%' + pesquisa + '%'))
-    
-    else:
-        cursor.execute("SELECT * FROM veiculos")
+         # Adiciona filtro de pesquisa por marca, modelo ou categoria
+        sql_base += """
+            AND (v.marca LIKE ?
+              OR v.modelo LIKE ?
+              OR v.categoria LIKE ?)
+        """
+        pesquisa_like = f'%{pesquisa}%'
+        parametros.extend([pesquisa_like, pesquisa_like, pesquisa_like])
 
-    
+    # Executa a query final com placeholders para evitar SQL injection
+    cursor.execute(sql_base, tuple(parametros))
     carros = cursor.fetchall()
     conn.close()
 
+    # Renderiza template passando lista filtrada de carros e termo de pesquisa
     return render_template('carros.html', carros=carros, pesquisa=pesquisa)
-
-#Neste momento vou inserir os carros para o utilizador ter acesso
+#Função vou inserir os carros para o utilizador ter acesso
 def inserir_carros():
     conn = conectar_bd()
     cursor = conn.cursor()
@@ -217,91 +244,133 @@ def inserir_carros():
     conn.commit()
     conn.close()
 
-@app.route('/carro/<int:carro_id>', methods=['GET'])
-def ver_carro(carro_id):
+
+
+@app.route("/reservar/<int:carro_id>", methods=["GET", "POST"])
+def reservar_carro(carro_id):
+
+#Rota para mostrar o formulário de reserva (GET) e processar a reserva (POST).
+#Em GET: busca sempre o carro pelo ID e exibe o template.
+#Em POST: valida datas, obtém cliente, calcula total, cria reserva e redireciona ao pagamento.
+     
     if 'usuario' not in session:
         return redirect(url_for('home'))
     
     conn = conectar_bd()
     cursor = conn.cursor()
+
+# Busca o carro no GET para preencher template e no POST para cálculo
     cursor.execute("SELECT * FROM veiculos WHERE id = ?", (carro_id,))
     carro = cursor.fetchone()
-    conn.close()
-
-    if not carro:
-        return "Carro não encontrado", 404
-    
-    return render_template('detalhes_carro.html', carro=carro)
-
-
-
-@app.route("/reservar/<int:carro_id>", methods= ["GET", "POST"])
-def reservar_carro(carro_id):
-    if 'usuario' not in session:
-        return redirect(url_for('home'))
-    
-    conn = conectar_bd()
-    cursor= conn.cursor()
-
-    #Obter detalhes do carro
-    cursor.execute("SELECT * FROM veiculos WHERE id = ?", (carro_id,))
-    carro =cursor.fetchone()
-
-    #caso nao seja encontrado
     if not carro:
         conn.close()
         return "Carro não encontrado", 404
     
     if request.method == "POST":
-        data_inicio= request.form ['data_inicio']
-        data_fim = request.form ['data_fim']
-        usuario = session ['usuario']
+        data_inicio_str = request.form['data_inicio']
+        data_fim_str = request.form['data_fim']
+        usuario = session['usuario']
 
-        #Obter ID do cliente com base no nome do utilizador
+        # Converte para datetime.date
+        data_inicio = datetime.strptime(data_inicio_str, "%Y-%m-%d").date()
+        data_fim = datetime.strptime(data_fim_str, "%Y-%m-%d").date()
+
+        # Validação: fim não pode ser antes de início
+        if data_fim < data_inicio:
+            conn.close()
+            return "A data de fim não pode ser anterior à data de início.", 400
+
+        # Busca ID do cliente
         cursor.execute("SELECT id FROM clientes WHERE usuario = ?", (usuario,))
         cliente = cursor.fetchone()
-
-        if  not cliente:
+        if not cliente:
             conn.close()
-            return f"Cliente não encontrado para o utulizador '{usuario}'"
-        
-        cliente_id= cliente[0]
+            return f"Cliente não encontrado para o usuário {usuario}.", 404
+        cliente_id = cliente['id']
 
-        #verificar se existe alguma reserva igual
+        # Calcula dias e total
+        dias = (datetime.strptime(data_fim, "%Y-%m-%d") - datetime.strptime(data_inicio, "%Y-%m-%d")).days + 1
+        valor_diaria = carro['valor_diaria']
+        total = dias * valor_diaria
+
+        # Insere reserva
         cursor.execute("""
-            SELECT * FROM reservas
-            WHERE cliente_id = ? AND veiculo_id = ? AND data_inicio  = ? AND data_fim = ? AND status = 'Ativa'
-        """, (cliente_id, carro_id, data_inicio, data_fim))
-        reserva_existente= cursor.fetchone()
+            INSERT INTO reservas 
+                (cliente_id, veiculo_id, data_inicio, data_fim, valor_total, status)
+            VALUES (?, ?, ?, ?, ?, 'Ativa')
+        """, (cliente_id, carro_id, data_inicio_str, data_fim_str, total))
+        conn.commit()
+        reserva_id = cursor.lastrowid
 
-        if reserva_existente:
-            conn.close()
-            return "Já existe uma reserva ativa com os mesmos dados."
+        # Armazena o total a pagar na sessão para exibir no pagamento
+        session['total_a_pagar'] = total
+        #'total_a_pagar': valor calculado da reserva que será exibido na página de pagamento.
+        # Certifica-se de remover qualquer diferença pré-existente
+        session.pop('diferenca_pagamento', None)
 
-        try:
-            data1 = datetime.strptime(data_inicio, "%Y-%m-%d")
-            data2 = datetime.strptime(data_fim, "%Y-%m-%d")
-            if data2 < data1:
-                return  "A data de fim não pode ser anterior á data de início."
-                
-            dias = (data2 - data1).days + 1
-            total = dias * carro[8]
-
-            cursor.execute("""
-                INSERT INTO reservas (cliente_id, veiculo_id, data_inicio, data_fim, valor_total, status)
-                VALUES (?, ?, ?, ?, ?, 'Ativa')
-            """, (cliente_id, carro_id, data_inicio, data_fim, total)) 
-
-            conn.commit()
-            conn.close()
-            return redirect(url_for("minhas_reservas"))
-
-        except Exception as e:
-            conn.close()
-            return f"Ocorreu um erro ao reservar: {e}"
+        conn.close()
+        # Redireciona para a tela de pagamento
+        return redirect(url_for('pagamento', reserva_id=reserva_id))
 
     conn.close()
     return render_template("reserva.html", carro=carro)
+
+#Rota de pagamento após uma reserva
+@app.route('/pagamento/<int:reserva_id>', methods=['GET', 'POST'])
+def pagamento(reserva_id):
+
+    """
+    Rota para exibir valores e processar o pagamento:
+    - Usa session['total_a_pagar'] e, se existir >0, session['diferenca_pagamento'].
+    - Ao concluir (POST), insere em pagamentos e limpa ambas as chaves na sessão.
+    """
+
+    if 'usuario' not in session:
+        return redirect(url_for('home'))
+    
+    conn = conectar_bd()
+    cursor = conn.cursor()
+
+    # Recupera apenas o mínimo de dados da reserva (pode ser usado para validação extra)
+    cursor.execute("SELECT id FROM reservas WHERE id = ?", (reserva_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return "Reserva não encontrada.", 404
+
+    # Carrega valores da sessão
+    valor_total = session.get('total_a_pagar', 0)
+    diferenca = session.get('diferenca_pagamento', 0)
+    mostrar_alteracao = (diferenca > 0)
+
+    #Verifica se o formulário foi submetido
+    if request.method == 'POST':
+        #Recolhe os dados do formulário
+        numero_cartao = request.form['numero_cartao']
+        nome_cartao = request.form['nome_cartao']
+        validade= request.form['validade']
+        codigo_seg = request.form['codigo_seg']
+
+
+        #insere os dados do pagamento
+        cursor.execute("""
+            INSERT INTO pagamentos (reserva_id, numero_cartao, nome_cartao, validade, codigo_seg)
+            VALUES (?, ?, ?, ?, ?)
+        """, (reserva_id, numero_cartao, nome_cartao, validade, codigo_seg))
+        conn.commit()
+
+        #limpar a diferença da sessão após o pagamento
+        session.pop('diferenca_pagamento', None)
+        session.pop('total_a_pagar', None)
+
+        conn.close()
+        #mostra a mensagem e redireciona o utilizador para a página "minhas_reservas"
+        flash ('Pagamento realizado com sucesso!', 'sucess')
+        #Mensagem de confirmação de reserva, categoria 'success' para estilização no template.
+        return redirect(url_for('minhas_reservas'))
+
+    conn.close()
+    #Se for pedido GET, mostra o formulário de pagamento
+    return render_template('pagamento.html', reserva_id=reserva_id, valor_total= valor_total, mostrar_alteracao=mostrar_alteracao, valor_alteracao=diferenca)
 
 @app.route("/minhas_reservas")
 def minhas_reservas():
@@ -329,7 +398,7 @@ def minhas_reservas():
         reservas = []
         for row in cursor.fetchall():
             id, marca, modelo, data_inicio, data_fim, valor_diaria, status = row
-            dias = (datetime.strptime(data_fim, "%Y-%m-%d") - datetime.strptime(data_inicio, "%Y-%m-%d")).days
+            dias = (datetime.strptime(data_fim, "%Y-%m-%d") - datetime.strptime(data_inicio, "%Y-%m-%d")).days + 1
             total = dias * valor_diaria
             reservas.append({
                 "id": id,
@@ -396,6 +465,14 @@ def cancelar_reserva(reserva_id):
 #Rota para alterar as datas da reservas
 @app.route("/alterar_reserva/<int:reserva_id>", methods= ["GET", "POST"])
 def alterar_reserva(reserva_id):
+
+    """
+    Rota para exibir o form de alteração (GET) e processar mudança de datas (POST).
+    - Recalcula total e diferença.
+    - Armazena temporariamente em sessão: 'total_a_pagar' e, se >0, 'diferenca_pagamento'.
+    - Redireciona sempre para /pagamento.
+    """
+
     if 'usuario' not in session:
         return redirect(url_for('home'))
     
@@ -411,41 +488,70 @@ def alterar_reserva(reserva_id):
         data_inicio= datetime.strptime(nova_inicio, "%Y-%m-%d").date()
         data_fim= datetime.strptime(nova_fim, "%Y-%m-%d").date()
 
+        #Verifica se a data do fim é anterior á de inicio
         if data_fim < data_inicio:
+            conn.close()
             return "A data de fim não pode ser anterior á data de início!"
 
-        #Buscar veiculo_id e diária da reserva original
-        cursor.execute("SELECT veiculo_id FROM reservas WHERE id = ?", (reserva_id,))
-        veiculo = cursor.fetchone()
+        # Obter dados da reserva original (veiculo e valor anterior)
+        cursor.execute("SELECT veiculo_id, valor_total FROM reservas WHERE id = ?", (reserva_id,))
+        dados_reserva = cursor.fetchone()
 
-        if veiculo:
-            veiculo_id = veiculo[0]
-
-            cursor.execute("SELECT valor_diaria FROM veiculos WHERE id = ?", (veiculo_id,))
-            valor = cursor.fetchone()
-            if valor:
-                diaria = valor[0]
-                dias = (data_fim - data_inicio).days + 1
-                total = diaria * dias
-
-            #Atualizar os dados das datas da reserva
-            cursor.execute("""
-                UPDATE reservas SET data_inicio = ?, data_fim = ?
-                WHERE id = ?
-            """, (nova_inicio, nova_fim, reserva_id))
-
-            conn.commit()
+        if not dados_reserva:
             conn.close()
-            return redirect(url_for("minhas_reservas"))
-    
-    #Obter dados da reserva para preencher o formulário
-    cursor.execute("SELECT data_inicio, data_fim FROM reservas WHERE id = ?", (reserva_id,))
-    reserva= cursor.fetchone()
+            return "Reserva não encontrada."
+        
+        veiculo_id, valor_anterior = dados_reserva['veiculo_id'], dados_reserva['valor_total']
+
+        #Obter o valor da diária do veículo
+        cursor.execute("SELECT valor_diaria FROM veiculos WHERE id = ?", (veiculo_id,))
+        valor = cursor.fetchone()
+
+        if not valor:
+            conn.close()
+            return "Veículo não encontrado."
+        
+        diaria = valor['valor_diaria']
+
+        #calcular o novo total com base nas novas datas
+        dias = (datetime.strptime(data_fim, "%Y-%m-%d") - datetime.strptime(data_inicio, "%Y-%m-%d")).days + 1
+        novo_total = diaria * dias
+
+        #calcular a diferença entre o novo total e o valor pago anteriormente
+        diferenca = novo_total - valor_anterior
+
+        #Atualizar as datas e o novo valor na reserva
+        cursor.execute("""
+            UPDATE reservas
+            SET data_inicio = ?, data_fim = ?, valor_total = ?
+            WHERE id = ?
+        """, (nova_inicio, nova_fim, novo_total, reserva_id))
+
+        conn.commit()
+        # Armazena na sessão apenas o que for relevante
+        session['total_a_pagar'] = novo_total
+        if diferenca > 0:
+            session['diferenca_pagamento'] = diferenca
+        else:
+            session.pop('diferenca_pagamento', None)
+        
+        conn.close()
+
+        #se houver valor adicional a pagar, redireciona para a página de pagamento
+        return redirect(url_for('pagamento', reserva_id=reserva_id))
+
+    #se for um pedido GET , busca dados atuais para mostrar no formulário
+    cursor.execute("""
+        SELECT data_inicio, data_fim 
+        FROM reservas WHERE id = ?
+    """, (reserva_id,))
+    reserva = cursor.fetchone()
     conn.close()
 
-    return render_template("alterar_reserva.html", reserva=reserva, reserva_id=reserva_id)
+    #enviar os dados para o template
+    return render_template("alterar_reserva.html", reserva = reserva, reserva_id= reserva_id)
 
-
+#route de logout, redireciona para a página "home", para o registo     
 @app.route("/logout")
 def logout():
     session.clear()
@@ -453,6 +559,7 @@ def logout():
 
 
 if __name__=='__main__':
+    #Inicializa o esquema e dados padrão de carros
     criar_tabelas()
     inserir_carros()
     app.run(debug=True)
